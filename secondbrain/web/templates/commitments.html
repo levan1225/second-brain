@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Commitments — secondbrain{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-gray-900">Commitments</h1>
+  <form class="flex gap-2 items-center">
+    <input
+      type="text" name="owner" value="{{ filters.owner or '' }}"
+      placeholder="filter by owner..."
+      class="border border-gray-300 rounded px-3 py-1 text-sm">
+    <label class="text-sm">
+      <input type="checkbox" name="overdue" value="true" {% if filters.overdue %}checked{% endif %}> overdue only
+    </label>
+    <button type="submit" class="bg-gray-900 text-white text-sm px-3 py-1 rounded hover:bg-gray-700">apply</button>
+  </form>
+</div>
+
+{% for bucket_name, items in buckets.items() %}
+{% if items %}
+<div class="sb-card mb-4">
+  <div class="px-4 py-3 border-b border-gray-200">
+    <h2 class="font-semibold
+      {% if bucket_name == 'overdue' %}text-red-700{% elif bucket_name == 'due_today' %}text-yellow-700{% endif %}">
+      {{ bucket_name.replace('_', ' ')|capitalize }} ({{ items|length }})
+    </h2>
+  </div>
+  <ul class="divide-y divide-gray-100">
+    {% for item in items %}
+    <li class="px-4 py-3 flex items-start gap-3">
+      <span class="sb-tag flex-shrink-0
+        {% if bucket_name == 'overdue' %}sb-tag-red
+        {% elif bucket_name == 'due_today' %}sb-tag-yellow
+        {% elif bucket_name == 'due_this_week' %}sb-tag-blue
+        {% else %}sb-tag-gray{% endif %}">
+        {{ item.due_date or "no date" }}
+      </span>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm text-gray-900">{{ item.title }}</div>
+        <div class="text-xs text-gray-500 mt-0.5 space-x-2">
+          {% if item.owner %}<span>owner: {{ item.owner }}</span>{% endif %}
+          {% if item.stakes %}<span>· stakes: {{ item.stakes }}</span>{% endif %}
+        </div>
+      </div>
+      <span class="text-xs text-gray-400 flex-shrink-0">#{{ item.id }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}

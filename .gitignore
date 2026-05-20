@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Secondbrain runtime data (should never be committed — local to each user)
+# These exist inside a project home, not in this repo, but defensive:
+state/workbench.db
+state/scan-state.json
+output/daemon/
+logs/
+.backup-pre-v2/
+
+# Secrets
+*.token
+*.pem
+secrets.yaml
+
+# Local config (could contain personal paths)
+~/.config/secondbrain/

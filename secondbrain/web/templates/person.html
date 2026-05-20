@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ frontmatter.title or slug }} — secondbrain{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="/people" class="text-sm text-blue-600 hover:underline">← all people</a>
+</div>
+
+<div class="flex items-baseline gap-3 mb-4">
+  <h1 class="text-2xl font-bold text-gray-900">{{ frontmatter.title or slug }}</h1>
+  {% if frontmatter.trust_tier %}
+  <span class="sb-tag {% if frontmatter.trust_tier == 'inner-circle' %}sb-tag-green{% elif frontmatter.trust_tier == 'trusted' %}sb-tag-blue{% else %}sb-tag-gray{% endif %}">
+    {{ frontmatter.trust_tier }}
+  </span>
+  {% endif %}
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+  <div class="sb-card p-4">
+    <div class="text-xs text-gray-500 uppercase">Role</div>
+    <div class="text-sm font-medium mt-1">{{ frontmatter.role or "—" }}</div>
+  </div>
+  <div class="sb-card p-4">
+    <div class="text-xs text-gray-500 uppercase">Relationship</div>
+    <div class="text-sm font-medium mt-1">{{ frontmatter.relationship or "—" }}</div>
+  </div>
+  <div class="sb-card p-4">
+    <div class="text-xs text-gray-500 uppercase">Team</div>
+    <div class="text-sm font-medium mt-1">{{ frontmatter.team or "—" }}</div>
+  </div>
+</div>
+
+{% if open_items %}
+<div class="sb-card mb-6">
+  <div class="px-4 py-3 border-b border-gray-200">
+    <h2 class="font-semibold">Open commitments ({{ open_items|length }})</h2>
+  </div>
+  <ul class="divide-y divide-gray-100">
+    {% for item in open_items %}
+    <li class="px-4 py-3 flex items-start gap-3">
+      <span class="sb-tag {% if item.due_date %}sb-tag-yellow{% else %}sb-tag-gray{% endif %} flex-shrink-0">
+        {{ item.due_date or "no date" }}
+      </span>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium text-gray-900">{{ item.title }}</div>
+        {% if item.stakes %}
+        <div class="text-xs text-gray-500 mt-0.5">{{ item.stakes }}</div>
+        {% endif %}
+      </div>
+      <span class="text-xs text-gray-400">#{{ item.id }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="sb-card p-6">
+  <div class="prose prose-sm max-w-none">
+    {{ body_html | safe }}
+  </div>
+</div>
+{% endblock %}

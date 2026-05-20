@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Briefings — secondbrain{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-4">Briefings ({{ briefings|length }})</h1>
+
+<div class="sb-card overflow-hidden">
+  <table class="min-w-full">
+    <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-2 text-left">Name</th>
+        <th class="px-4 py-2 text-left">Generated</th>
+        <th class="px-4 py-2 text-right">Size</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for b in briefings %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-2">
+          <a href="/briefings/{{ b.name }}" class="text-sm text-blue-600 hover:underline">{{ b.name }}</a>
+        </td>
+        <td class="px-4 py-2 text-xs text-gray-500">{{ b.mtime }}</td>
+        <td class="px-4 py-2 text-right text-xs text-gray-500">{{ b.size_kb }} KB</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not briefings %}
+<p class="text-gray-500 mt-4">No briefings yet. Run <code class="bg-gray-100 px-1 py-0.5 rounded">sb daemon run-once morning_brief</code> to generate one.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Connectors — secondbrain{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-4">Connectors</h1>
+
+<div class="sb-card p-6 mb-6 bg-blue-50 border-blue-200">
+  <h2 class="font-semibold text-blue-900 mb-2">For Slack + Outlook: use Claude Desktop</h2>
+  <p class="text-sm text-blue-900 mb-2">
+    Claude Desktop already ships with Slack and Outlook connectors that handle OAuth for you.
+    Set them up in <strong>Claude Desktop → Settings → Connectors</strong>, then Claude sessions can post to Slack
+    or read your calendar — alongside the secondbrain MCP tools.
+  </p>
+  <p class="text-sm text-blue-900">
+    Example: ask Claude <em>"Post today's morning briefing to my Slack DM"</em>.
+    Claude reads the briefing file with secondbrain's <code class="bg-blue-100 px-1 rounded">read_wiki_page</code>
+    tool, then sends via Claude's own Slack connector.
+  </p>
+</div>
+
+{% if connectors %}
+<div class="sb-card overflow-hidden mb-4">
+  <table class="min-w-full">
+    <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-2 text-left">Name</th>
+        <th class="px-4 py-2 text-left">Source</th>
+        <th class="px-4 py-2 text-left">Status</th>
+        <th class="px-4 py-2 text-left">Identity / Detail</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for c in connectors %}
+      <tr>
+        <td class="px-4 py-2 font-medium text-sm">{{ c.name }}</td>
+        <td class="px-4 py-2 text-sm text-gray-500">{{ c.source }}</td>
+        <td class="px-4 py-2">
+          {% if c.available and c.connected %}
+          <span class="sb-tag sb-tag-green">connected</span>
+          {% elif c.available %}
+          <span class="sb-tag sb-tag-gray">not configured</span>
+          {% else %}
+          <span class="sb-tag sb-tag-yellow">unavailable</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 text-sm text-gray-600">
+          {% if c.identity %}{{ c.identity }}
+          {% elif c.error %}<span class="text-gray-500">{{ c.error }}</span>
+          {% elif c.missing %}<code class="text-xs bg-gray-100 px-2 py-0.5 rounded">{{ c.missing }}</code>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="sb-card p-6 text-center text-gray-500">
+  <p>No third-party connectors installed.</p>
+  <p class="mt-2 text-sm">
+    Install one with <code class="bg-gray-100 px-1 py-0.5 rounded">pip install secondbrain-&lt;name&gt;-connector</code>
+  </p>
+</div>
+{% endif %}
+{% endblock %}

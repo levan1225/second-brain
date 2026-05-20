@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} — secondbrain{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="/briefings" class="text-sm text-blue-600 hover:underline">← all briefings</a>
+</div>
+
+<div class="sb-card p-6">
+  <div class="prose prose-sm max-w-none">
+    {{ body_html | safe }}
+  </div>
+</div>
+{% endblock %}

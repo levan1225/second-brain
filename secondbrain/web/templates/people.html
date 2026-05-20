@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}People — secondbrain{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-4">People ({{ people|length }})</h1>
+
+<div class="sb-card overflow-hidden">
+  <table class="min-w-full">
+    <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-2 text-left">Name</th>
+        <th class="px-4 py-2 text-left">Role</th>
+        <th class="px-4 py-2 text-left">Relationship</th>
+        <th class="px-4 py-2 text-left">Trust</th>
+        <th class="px-4 py-2 text-right">Open</th>
+        <th class="px-4 py-2 text-left">Last updated</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for p in people %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-2">
+          <a href="/people/{{ p.slug }}" class="text-sm font-medium text-blue-600 hover:underline">{{ p.name }}</a>
+        </td>
+        <td class="px-4 py-2 text-sm text-gray-600">{{ p.role or "—" }}</td>
+        <td class="px-4 py-2 text-sm text-gray-600">{{ p.relationship or "—" }}</td>
+        <td class="px-4 py-2">
+          {% if p.trust_tier == "inner-circle" %}
+          <span class="sb-tag sb-tag-green">{{ p.trust_tier }}</span>
+          {% elif p.trust_tier == "trusted" %}
+          <span class="sb-tag sb-tag-blue">{{ p.trust_tier }}</span>
+          {% elif p.trust_tier %}
+          <span class="sb-tag sb-tag-gray">{{ p.trust_tier }}</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 text-right">
+          {% if p.open_count > 0 %}
+          <span class="sb-tag sb-tag-yellow">{{ p.open_count }}</span>
+          {% else %}
+          <span class="text-xs text-gray-400">0</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 text-xs text-gray-500">{{ p.last_updated or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not people %}
+<p class="text-gray-500 mt-4">No people pages yet. Run <code class="bg-gray-100 px-1 py-0.5 rounded">sb scan</code> to populate.</p>
+{% endif %}
+{% endblock %}

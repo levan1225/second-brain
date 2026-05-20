@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Daemon — secondbrain{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-gray-900">Daemon</h1>
+  {% if running %}
+  <span class="sb-tag sb-tag-green">● running (pid {{ pid }})</span>
+  {% else %}
+  <span class="sb-tag sb-tag-gray">● not running</span>
+  {% endif %}
+</div>
+
+{% if state.jobs %}
+<div class="sb-card mb-6 overflow-hidden">
+  <div class="px-4 py-3 border-b border-gray-200">
+    <h2 class="font-semibold">Registered jobs</h2>
+  </div>
+  <table class="min-w-full">
+    <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-2 text-left">ID</th>
+        <th class="px-4 py-2 text-left">Description</th>
+        <th class="px-4 py-2 text-left">Next run</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for j in state.jobs %}
+      <tr>
+        <td class="px-4 py-2 font-medium text-sm">{{ j.id }}</td>
+        <td class="px-4 py-2 text-sm text-gray-600">{{ j.description }}</td>
+        <td class="px-4 py-2 text-xs text-gray-500">{{ j.next_run or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if history %}
+<div class="sb-card overflow-hidden">
+  <div class="px-4 py-3 border-b border-gray-200">
+    <h2 class="font-semibold">Recent fires</h2>
+  </div>
+  <table class="min-w-full">
+    <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-2 text-left">Job</th>
+        <th class="px-4 py-2 text-left">Fired at</th>
+        <th class="px-4 py-2 text-left">Status</th>
+        <th class="px-4 py-2 text-right">Duration</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for h in history %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-2 text-sm font-medium">{{ h.job_id }}</td>
+        <td class="px-4 py-2 text-xs text-gray-500">{{ h.fired_at[:19] }}</td>
+        <td class="px-4 py-2">
+          {% if h.status == "ok" %}
+          <span class="sb-tag sb-tag-green">ok</span>
+          {% else %}
+          <span class="sb-tag sb-tag-red">{{ h.status }}</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 text-right text-xs text-gray-500">{{ h.duration_ms or "—" }} ms</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not state.jobs and not history %}
+<div class="sb-card p-8 text-center text-gray-500">
+  <p>No daemon activity yet.</p>
+  <p class="mt-2 text-sm">Start with <code class="bg-gray-100 px-1 py-0.5 rounded">sb daemon start --bg</code></p>
+</div>
+{% endif %}
+{% endblock %}

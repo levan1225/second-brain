@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "second-brain"
+version = "3.0.0a1"
+description = "Your local-first executive operating system. Tracks programs, people, and commitments. Works with Claude, Cursor, or any LLM that speaks MCP."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "secondbrain contributors" },
+]
+keywords = [
+    "productivity",
+    "knowledge-management",
+    "tpm",
+    "executive-assistant",
+    "llm",
+    "mcp",
+    "claude",
+    "local-first",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "click>=8.1",       # CLI framework
+    "rich>=13.0",       # Pretty terminal output
+    "pyyaml>=6.0",      # Config + canonical-store YAML
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]               # MCP server — exposes secondbrain to any LLM client
+daemon = ["apscheduler>=3.10"]   # Background scheduler (morning briefing, etc.)
+web = ["fastapi>=0.110", "uvicorn[standard]>=0.27", "jinja2>=3.1"]  # Localhost dashboard
+# Note: Slack + Outlook are NOT shipped as secondbrain connectors. Use Claude Desktop's
+# built-in Slack / Outlook connectors instead (Settings → Connectors). Claude sessions
+# can call those tools alongside secondbrain's MCP tools — no separate auth needed.
+# Third-party connectors for systems Claude Desktop doesn't cover (Jira, internal tools)
+# register via the secondbrain.connectors entry-point group.
+all = ["second-brain[mcp,daemon,web]"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "twine",
+    "build",
+]
+
+[project.scripts]
+sb = "secondbrain.cli.__main__:main"
+
+[project.entry-points."secondbrain.connectors"]
+# Built-in connectors register themselves here. Third-party connectors
+# published to PyPI register the same way, e.g.:
+# [project.entry-points."secondbrain.connectors"]
+# jira = "secondbrain_jira:JiraConnector"
+
+[project.urls]
+Homepage = "https://github.com/vnguyen8/second-brain"
+Documentation = "https://github.com/vnguyen8/second-brain/blob/main/README.md"
+Repository = "https://github.com/vnguyen8/second-brain"
+Issues = "https://github.com/vnguyen8/second-brain/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["secondbrain"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/secondbrain",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
