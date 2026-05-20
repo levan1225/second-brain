@@ -71,10 +71,10 @@ sb = "secondbrain.cli.__main__:main"
 # jira = "secondbrain_jira:JiraConnector"
 
 [project.urls]
-Homepage = "https://github.com/vnguyen8/second-brain"
-Documentation = "https://github.com/vnguyen8/second-brain/blob/main/README.md"
-Repository = "https://github.com/vnguyen8/second-brain"
-Issues = "https://github.com/vnguyen8/second-brain/issues"
+Homepage = "https://github.com/levan1225/second-brain"
+Documentation = "https://github.com/levan1225/second-brain/blob/main/README.md"
+Repository = "https://github.com/levan1225/second-brain"
+Issues = "https://github.com/levan1225/second-brain/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["secondbrain"]
