@@ -26,9 +26,21 @@ from secondbrain.daemon import state as daemon_state
 
 
 def _make_trigger(schedule: dict[str, Any]):
-    """Convert a Job.schedule dict into an APScheduler trigger."""
+    """Convert a Job.schedule dict into an APScheduler trigger.
+
+    Accepted forms:
+      {"cron": "45 16 * * mon-fri"}                          ← crontab string
+      {"cron": {"hour": 7, "minute": 0, "day_of_week": "mon-fri"}}  ← kwargs
+      {"interval_seconds": 300}
+    """
     if "cron" in schedule:
-        return CronTrigger(**schedule["cron"])
+        cron = schedule["cron"]
+        if isinstance(cron, str):
+            # Standard 5-field crontab: minute hour dom month dow
+            return CronTrigger.from_crontab(cron)
+        if isinstance(cron, dict):
+            return CronTrigger(**cron)
+        raise ValueError(f"invalid cron schedule: {cron!r}")
     if "interval_seconds" in schedule:
         return IntervalTrigger(seconds=schedule["interval_seconds"])
     raise ValueError(f"unsupported schedule: {schedule}")

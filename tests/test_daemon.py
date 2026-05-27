@@ -98,6 +98,64 @@ def test_morning_brief_no_data_handles_gracefully(tmp_path: Path) -> None:
     assert result["due_this_week"] == 0
 
 
+def test_make_trigger_accepts_cron_string() -> None:
+    """Regression: aging_commitments uses {'cron': '45 16 * * mon-fri'} (string).
+    The daemon startup was crashing because _make_trigger only handled dict form.
+    """
+    from secondbrain.daemon.server import _make_trigger
+    from apscheduler.triggers.cron import CronTrigger
+
+    trigger = _make_trigger({"cron": "45 16 * * mon-fri"})
+    assert isinstance(trigger, CronTrigger)
+
+
+def test_make_trigger_accepts_cron_dict() -> None:
+    """morning_brief uses dict form — also must work."""
+    from secondbrain.daemon.server import _make_trigger
+    from apscheduler.triggers.cron import CronTrigger
+
+    trigger = _make_trigger({"cron": {"hour": 7, "minute": 0, "day_of_week": "mon-fri"}})
+    assert isinstance(trigger, CronTrigger)
+
+
+def test_make_trigger_accepts_interval() -> None:
+    from secondbrain.daemon.server import _make_trigger
+    from apscheduler.triggers.interval import IntervalTrigger
+
+    trigger = _make_trigger({"interval_seconds": 300})
+    assert isinstance(trigger, IntervalTrigger)
+
+
+def test_make_trigger_rejects_garbage() -> None:
+    from secondbrain.daemon.server import _make_trigger
+    import pytest
+
+    with pytest.raises(ValueError):
+        _make_trigger({"never_heard_of_this": 42})
+
+
+def test_make_trigger_rejects_invalid_cron_value() -> None:
+    from secondbrain.daemon.server import _make_trigger
+    import pytest
+
+    with pytest.raises(ValueError):
+        _make_trigger({"cron": 12345})  # not a string or dict
+
+
+def test_all_builtin_jobs_have_valid_triggers() -> None:
+    """Boot every shipped job through _make_trigger — catches the next
+    schedule-format mismatch the moment it lands.
+    """
+    from secondbrain.daemon.registry import JOBS, load_builtin_jobs
+    from secondbrain.daemon.server import _make_trigger
+
+    load_builtin_jobs()
+    assert len(JOBS) > 0, "no jobs registered after load_builtin_jobs()"
+    for job_id, job in JOBS.items():
+        trigger = _make_trigger(job.schedule)
+        assert trigger is not None, f"job '{job_id}' produced no trigger"
+
+
 def test_record_fire_and_history(tmp_path: Path) -> None:
     (tmp_path / "state").mkdir(parents=True, exist_ok=True)
     db = tmp_path / "state" / "workbench.db"

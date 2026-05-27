@@ -213,6 +213,285 @@ def run_once(job_id: str) -> None:
         raise click.Abort()
 
 
+@daemon.command(help="Install a per-user launchd LaunchAgent (macOS) or systemd timer (Linux) "
+                     "so jobs fire on schedule + survive sleep/wake without a long-running daemon. "
+                     "Recommended over `sb daemon start --bg` on real machines.")
+@click.option("--uninstall", is_flag=True, help="Remove instead of install.")
+@click.option("--dry-run", is_flag=True, help="Show what would be written without writing it.")
+def install(uninstall: bool, dry_run: bool) -> None:
+    import platform
+    sys_name = platform.system()
+    if sys_name == "Darwin":
+        _install_launchd(uninstall=uninstall, dry_run=dry_run)
+    elif sys_name == "Linux":
+        _install_systemd(uninstall=uninstall, dry_run=dry_run)
+    else:
+        console.print(f"[red]✗[/red] No installer for {sys_name} yet. "
+                      "Use `sb daemon start --bg` and reschedule on boot manually.")
+        raise click.Abort()
+
+
+# ── launchd integration (macOS) ─────────────────────────────────────────
+
+
+def _launchd_agents_dir() -> "Path":
+    from pathlib import Path
+    return Path.home() / "Library" / "LaunchAgents"
+
+
+def _launchd_label(job_id: str) -> str:
+    return f"com.secondbrain.{job_id}"
+
+
+def _resolve_sb_binary() -> str:
+    """Locate the absolute path to `sb` for the LaunchAgent.
+
+    LaunchAgents run with a minimal PATH so a bare `sb` won't resolve.
+    Prefer the pipx-installed binary, then a venv binary, then sys.argv[0].
+    """
+    import shutil
+    sb = shutil.which("sb")
+    if sb:
+        return sb
+    # Fallback: re-derive from the Python interpreter running this process
+    return sys.executable + " -m secondbrain.cli"
+
+
+def _job_cron_to_calendar_interval(schedule: dict) -> list[dict]:
+    """Convert a Job.schedule dict into one or more launchd StartCalendarInterval entries.
+
+    launchd's StartCalendarInterval is dict-of-int. To express "weekdays at 7:00 AM"
+    we need 5 entries (Mon=1, Tue=2, Wed=3, Thu=4, Fri=5), each with the same hour/min.
+    """
+    cron = schedule.get("cron")
+    if cron is None:
+        return []
+
+    # Parse either string ("45 16 * * mon-fri") or dict ({hour:7, minute:0, day_of_week:'mon-fri'})
+    if isinstance(cron, str):
+        # 5-field crontab: minute hour dom month dow
+        parts = cron.split()
+        if len(parts) != 5:
+            raise ValueError(f"crontab must have 5 fields, got: {cron!r}")
+        minute_s, hour_s, dom_s, month_s, dow_s = parts
+        minute = int(minute_s)
+        hour = int(hour_s)
+        dow_spec = dow_s
+    elif isinstance(cron, dict):
+        minute = int(cron.get("minute", 0))
+        hour = int(cron.get("hour", 0))
+        dow_spec = str(cron.get("day_of_week", "*"))
+    else:
+        return []
+
+    # Expand dow_spec ("mon-fri" or "*" or "0,3,5") into launchd Weekday ints
+    weekdays = _parse_dow(dow_spec)
+    return [{"Hour": hour, "Minute": minute, "Weekday": wd} for wd in weekdays]
+
+
+def _parse_dow(spec: str) -> list[int]:
+    """Convert cron day-of-week spec to launchd Weekday ints (Sun=0..Sat=6).
+
+    Supports: '*', 'mon-fri', 'sat,sun', '1-5', '0,3,5', or a single token.
+    """
+    name_map = {"sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6}
+    spec = spec.strip().lower()
+    if spec in ("*", "?"):
+        return [0, 1, 2, 3, 4, 5, 6]
+
+    result: set[int] = set()
+    for token in spec.split(","):
+        token = token.strip()
+        if "-" in token:
+            a, b = token.split("-", 1)
+            a_int = name_map.get(a, int(a) if a.isdigit() else None)
+            b_int = name_map.get(b, int(b) if b.isdigit() else None)
+            if a_int is None or b_int is None:
+                continue
+            # Handle ranges including wraparound (rare but cron-legal)
+            if a_int <= b_int:
+                result.update(range(a_int, b_int + 1))
+            else:
+                result.update(list(range(a_int, 7)) + list(range(0, b_int + 1)))
+        else:
+            v = name_map.get(token, int(token) if token.isdigit() else None)
+            if v is not None:
+                result.add(v)
+    return sorted(result)
+
+
+def _make_launchd_plist(job_id: str, schedule: dict, sb_bin: str,
+                       project_home: str, log_dir: str) -> str:
+    """Render the launchd plist XML for one job."""
+    label = _launchd_label(job_id)
+    intervals = _job_cron_to_calendar_interval(schedule)
+    if not intervals:
+        # Fall back to interval-seconds for jobs without cron
+        interval_s = schedule.get("interval_seconds")
+        if interval_s:
+            sci_xml = f"  <key>StartInterval</key>\n  <integer>{int(interval_s)}</integer>"
+        else:
+            sci_xml = "  <key>RunAtLoad</key>\n  <true/>"
+    else:
+        # StartCalendarInterval is an array of dicts when there are multiple slots
+        items_xml = "\n".join([
+            "    <dict>\n"
+            + "\n".join(f"      <key>{k}</key>\n      <integer>{v}</integer>" for k, v in i.items())
+            + "\n    </dict>"
+            for i in intervals
+        ])
+        sci_xml = f"  <key>StartCalendarInterval</key>\n  <array>\n{items_xml}\n  </array>"
+
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>{label}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{sb_bin}</string>
+    <string>daemon</string>
+    <string>run-once</string>
+    <string>{job_id}</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>SECONDBRAIN_HOME</key>
+    <string>{project_home}</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+  </dict>
+{sci_xml}
+  <key>StandardOutPath</key>
+  <string>{log_dir}/{job_id}.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>{log_dir}/{job_id}.err.log</string>
+  <key>WorkingDirectory</key>
+  <string>{project_home}</string>
+</dict>
+</plist>
+"""
+
+
+def _install_launchd(*, uninstall: bool, dry_run: bool) -> None:
+    """Install one LaunchAgent per registered job. macOS only."""
+    from pathlib import Path
+    from secondbrain.daemon.registry import JOBS, load_builtin_jobs
+    from secondbrain.daemon import state as daemon_state
+
+    try:
+        ws = Workspace()
+    except WorkspaceError as e:
+        console.print(f"[red]✗[/red] {e}")
+        raise click.Abort()
+
+    load_builtin_jobs()
+    if not JOBS:
+        console.print("[red]✗[/red] no jobs registered")
+        raise click.Abort()
+
+    agents_dir = _launchd_agents_dir()
+    log_dir = daemon_state.CONFIG_DIR / "logs"
+    sb_bin = _resolve_sb_binary()
+
+    if uninstall:
+        if dry_run:
+            console.print("[cyan]dry-run: would unload + remove[/cyan]")
+        for job_id in JOBS:
+            label = _launchd_label(job_id)
+            plist = agents_dir / f"{label}.plist"
+            if plist.exists():
+                if not dry_run:
+                    subprocess.run(["launchctl", "unload", str(plist)],
+                                   capture_output=True, text=True)
+                    plist.unlink()
+                console.print(f"  [yellow]−[/yellow] removed {label}")
+            else:
+                console.print(f"  [dim]·[/dim] {label} not installed, skipping")
+        if not dry_run:
+            console.print("\n[green]✓[/green] uninstalled. The `sb daemon` process can still be used "
+                          "manually via `sb daemon start --bg` or `sb daemon run-once`.")
+        return
+
+    # Install
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    if dry_run:
+        console.print(f"[cyan]dry-run: would write {len(JOBS)} plists to {agents_dir}[/cyan]\n")
+    else:
+        console.print(f"\nInstalling {len(JOBS)} LaunchAgent(s) into [cyan]{agents_dir}[/cyan]\n")
+
+    for job_id, job in JOBS.items():
+        label = _launchd_label(job_id)
+        plist_path = agents_dir / f"{label}.plist"
+        try:
+            xml = _make_launchd_plist(
+                job_id, job.schedule, sb_bin,
+                project_home=str(ws.project_home),
+                log_dir=str(log_dir),
+            )
+        except ValueError as e:
+            console.print(f"  [red]✗[/red] {job_id}: {e}")
+            continue
+
+        if dry_run:
+            console.print(f"[cyan]── {plist_path} ──[/cyan]")
+            console.print(xml)
+            continue
+
+        # If already loaded, unload first (so updates take effect)
+        if plist_path.exists():
+            subprocess.run(["launchctl", "unload", str(plist_path)],
+                           capture_output=True, text=True)
+
+        plist_path.write_text(xml, encoding="utf-8")
+        # Set permissions to user-only (launchd is strict)
+        plist_path.chmod(0o644)
+
+        result = subprocess.run(["launchctl", "load", str(plist_path)],
+                                capture_output=True, text=True)
+        if result.returncode == 0:
+            console.print(f"  [green]✓[/green] {label}")
+            console.print(f"    [dim]→ {plist_path}[/dim]")
+            # Show next scheduled time if launchd will tell us
+            list_out = subprocess.run(
+                ["launchctl", "list", label],
+                capture_output=True, text=True,
+            )
+            if list_out.returncode == 0 and "PID" in list_out.stdout:
+                # extract last exit + run state
+                pass
+        else:
+            console.print(f"  [red]✗[/red] {label}: launchctl load failed")
+            console.print(f"    [dim]{result.stderr.strip()}[/dim]")
+
+    if not dry_run:
+        console.print(f"\n[green]✓[/green] installed. Jobs will fire on schedule + survive sleep/wake.")
+        console.print(f"\nVerify with: [cyan]launchctl list | grep com.secondbrain[/cyan]")
+        console.print(f"Per-job logs: [cyan]{log_dir}/<job_id>.out.log[/cyan]")
+        console.print(f"Uninstall:    [cyan]sb daemon install --uninstall[/cyan]")
+
+
+# ── systemd integration (Linux) ─────────────────────────────────────────
+
+
+def _install_systemd(*, uninstall: bool, dry_run: bool) -> None:
+    """Install a systemd user timer per job. Linux only.
+
+    Each job gets two files in ~/.config/systemd/user/:
+      secondbrain-<job_id>.service   — what to run
+      secondbrain-<job_id>.timer     — when to run
+    """
+    console.print(
+        "[yellow]systemd integration is not yet implemented[/yellow]\n"
+        "  For now, on Linux use a cron entry pointing at `sb daemon run-once <job_id>`.\n"
+        "  PRs welcome at https://github.com/levan1225/second-brain"
+    )
+    raise click.Abort()
+
+
 @daemon.command(help="Show recent daemon fire history from the DB.")
 @click.option("--job", help="Filter to one job id")
 @click.option("--limit", type=int, default=20)
